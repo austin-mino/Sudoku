@@ -144,7 +144,7 @@
       justify-content: center;
     }
     #keypad .key {
-      width: 40px;
+      width: 50px;       /* 기본 버튼 너비 확대 */
       height: 40px;
       font-size: 1.1rem;
       border-radius: 6px;
@@ -154,6 +154,9 @@
       cursor: pointer;
       user-select: none;
       font-weight: 600;
+    }
+    #keypad .key[data-key="0"] {
+      width: 60px;  /* 지우기 버튼만 더 넓게 */
     }
     #keypad .key:hover {
       background: #3a8ce0;
