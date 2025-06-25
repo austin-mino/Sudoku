@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sudoku Pro</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <style>
     :root {
       --bg: #0e1014;
@@ -63,7 +63,7 @@
       display: grid;
       grid-template-columns: repeat(9, 40px);
       grid-template-rows: repeat(9, 40px);
-      gap: 2px;
+      gap: 0;
     }
     .cell {
       width: 40px;
@@ -72,10 +72,11 @@
       align-items: center;
       justify-content: center;
       background: var(--card);
-      border-radius: 4px;
       font-size: 1.1rem;
       cursor: pointer;
       user-select: none;
+      box-sizing: border-box;
+      border: 1px solid #555;
     }
     .cell.prefill {
       background: #282c34;
@@ -87,8 +88,17 @@
     .cell.selected {
       outline: 2px solid var(--accent);
     }
-    .subgrid-border {
-      box-shadow: 0 0 0 2px var(--accent) inset;
+    .border-top {
+      border-top: 2px solid var(--accent) !important;
+    }
+    .border-left {
+      border-left: 2px solid var(--accent) !important;
+    }
+    .border-right {
+      border-right: 2px solid var(--accent) !important;
+    }
+    .border-bottom {
+      border-bottom: 2px solid var(--accent) !important;
     }
   </style>
 </head>
@@ -115,8 +125,7 @@
       for (let i = 0; i < 9; i++) {
         if ((i !== col && board[row][i] === num) || (i !== row && board[i][col] === num)) return false;
       }
-      const sr = Math.floor(row / 3) * 3;
-      const sc = Math.floor(col / 3) * 3;
+      const sr = Math.floor(row / 3) * 3, sc = Math.floor(col / 3) * 3;
       for (let r = sr; r < sr + 3; r++) {
         for (let c = sc; c < sc + 3; c++) {
           if ((r !== row || c !== col) && board[r][c] === num) return false;
@@ -180,11 +189,8 @@
           const backup = puzzle[r][c];
           puzzle[r][c] = 0;
           const copy = deepCopy(puzzle);
-          if (!solve(copy)) {
-            puzzle[r][c] = backup;
-          } else {
-            attempts--;
-          }
+          if (!solve(copy)) puzzle[r][c] = backup;
+          else attempts--;
         }
       }
       return puzzle;
@@ -202,29 +208,35 @@
         for (let c = 0; c < 9; c++) {
           const cell = document.createElement('div');
           cell.className = 'cell';
-          if ((r % 3 === 0 && c % 3 === 0)) cell.classList.add('subgrid-border');
-          if (selected && selected.r === r && selected.c === c) cell.classList.add('selected');
+          if (r % 3 === 0) cell.classList.add('border-top');
+          if (c % 3 === 0) cell.classList.add('border-left');
+          if (r === 8) cell.classList.add('border-bottom');
+          if (c === 8) cell.classList.add('border-right');
+
+          if (selected && selected.r === r && selected.c === c)
+            cell.classList.add('selected');
+
           const val = puzzle[r][c];
           if (val !== 0) {
             cell.textContent = val;
             cell.classList.add('prefill');
           }
+
           const key = `${r}-${c}`;
           cell.dataset.pos = key;
           if (!prefillCells.has(key)) {
             cell.onclick = () => selectCell(r, c);
           }
+
           boardEl.appendChild(cell);
         }
       }
     }
 
     function selectCell(r, c) {
-      const key = `${r}-${c}`;
-      if (prefillCells.has(key)) return;
+      if (prefillCells.has(`${r}-${c}`)) return;
       selected = { r, c };
       drawBoard();
-      document.addEventListener('keydown', handleInput, { once: true });
     }
 
     function handleInput(e) {
@@ -232,9 +244,13 @@
       const num = parseInt(e.key);
       const { r, c } = selected;
       if (num >= 1 && num <= 9) {
-        puzzle[r][c] = num;
+        if (!prefillCells.has(`${r}-${c}`)) {
+          puzzle[r][c] = num;
+        }
       } else if (e.key === 'Backspace' || e.key === 'Delete') {
-        puzzle[r][c] = 0;
+        if (!prefillCells.has(`${r}-${c}`)) {
+          puzzle[r][c] = 0;
+        }
       }
       validate();
       drawBoard();
@@ -317,6 +333,7 @@
     document.getElementById('themeToggle').onclick = () => {
       document.body.classList.toggle('light');
     };
+    document.addEventListener('keydown', handleInput);
 
     newGame();
   </script>
