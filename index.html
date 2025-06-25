@@ -2,8 +2,8 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Sudoku Pro</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sudoku Pro with Memo & Lives</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <style>
@@ -30,6 +30,7 @@
       flex-direction: column;
       align-items: center;
       min-height: 100vh;
+      user-select: none;
     }
     h1 {
       margin: 0 0 1rem;
@@ -57,19 +58,29 @@
     #timer {
       font-weight: 600;
     }
+    #lives {
+      font-weight: 600;
+      margin-left: 10px;
+      color: var(--danger);
+    }
+    #noteToggle {
+      background: #ffb142;
+      color: black;
+    }
     #board {
       display: grid;
       grid-template-columns: repeat(9, 40px);
       grid-template-rows: repeat(9, 40px);
     }
     .cell {
+      position: relative;
       width: 40px;
       height: 40px;
       display: flex;
       align-items: center;
       justify-content: center;
       background: var(--card);
-      font-size: 1.1rem;
+      font-size: 1.4rem;
       cursor: pointer;
       user-select: none;
       box-sizing: border-box;
@@ -78,12 +89,16 @@
     .cell.prefill {
       background: #282c34;
       font-weight: 700;
+      cursor: default;
+      color: #ccc;
     }
     .cell.invalid {
       color: var(--danger);
+      font-weight: 700;
     }
     .cell.selected {
       outline: 2px solid var(--accent);
+      z-index: 1;
     }
     .border-top {
       border-top: 2px solid var(--accent) !important;
@@ -97,26 +112,27 @@
     .border-bottom {
       border-bottom: 2px solid var(--accent) !important;
     }
-    #keypad {
-      margin-top: 20px;
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      justify-content: center;
+    /* 메모 스타일 */
+    .notes {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      right: 3px;
+      bottom: 3px;
+      font-size: 0.5rem;
+      color: #888;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      user-select: none;
+      pointer-events: none;
     }
-    .key {
-      background: var(--card);
-      color: var(--text);
-      font-size: 1.2rem;
-      padding: 10px 16px;
-      border-radius: 8px;
-      border: 2px solid var(--accent);
-      cursor: pointer;
-      min-width: 40px;
-    }
-    .key:hover {
-      background: var(--accent);
-      color: white;
+    .notes div {
+      text-align: center;
+      line-height: 1;
+      padding: 0;
+      margin: 0;
+      user-select: none;
     }
   </style>
 </head>
@@ -130,8 +146,10 @@
     </select>
     <button id="newGameBtn">새 게임</button>
     <button id="hintBtn"><i class="fa-solid fa-lightbulb"></i> 힌트</button>
+    <button id="noteToggle">메모 모드 OFF</button>
     <button id="themeToggle"><i class="fa-solid fa-circle-half-stroke"></i></button>
     <span id="hintCount"></span>
+    <span id="lives">목숨: 3</span>
     <span id="timer">00:00</span>
   </div>
 
@@ -228,12 +246,18 @@
       return puzzle;
     }
 
+    // 상태 변수
     const boardEl = document.getElementById('board');
     const difficultySelect = document.getElementById('difficulty');
     const hintCountEl = document.getElementById('hintCount');
+    const livesEl = document.getElementById('lives');
     let puzzle = [], solution = [], prefillCells = new Set(), selected = null;
+    let notes = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => new Set()));
     let timerInt, startTime, hintLimit = 0, hintUsed = 0;
+    let lives = 3;
+    let isNoteMode = false;
 
+    // 보드 그리기
     function drawBoard() {
       boardEl.innerHTML = '';
       for (let r = 0; r < 9; r++) {
@@ -250,12 +274,28 @@
             cell.classList.add('selected');
           }
 
-          const val = puzzle[r][c];
-          if (val !== 0) {
-            cell.textContent = val;
+          if (puzzle[r][c] !== 0) {
+            cell.textContent = puzzle[r][c];
             if (prefillCells.has(key)) {
               cell.classList.add('prefill');
             }
+            if (!isValid(puzzle, r, c, puzzle[r][c])) {
+              cell.classList.add('invalid');
+            }
+          } else if (notes[r][c].size > 0) {
+            // 메모 표시
+            const notesDiv = document.createElement('div');
+            notesDiv.className = 'notes';
+            for (let n = 1; n <= 9; n++) {
+              const noteCell = document.createElement('div');
+              if (notes[r][c].has(n)) {
+                noteCell.textContent = n;
+              } else {
+                noteCell.textContent = '';
+              }
+              notesDiv.appendChild(noteCell);
+            }
+            cell.appendChild(notesDiv);
           }
 
           cell.dataset.pos = key;
@@ -268,23 +308,47 @@
       }
     }
 
+    // 셀 선택
     function selectCell(r, c) {
       if (prefillCells.has(`${r}-${c}`)) return;
       selected = { r, c };
       drawBoard();
     }
 
-    function handleInput(e) {
+    // 입력 처리 (키보드 및 키패드)
+    function inputNumber(num) {
       if (!selected) return;
-      const num = parseInt(e.key);
       const { r, c } = selected;
-      if (num >= 1 && num <= 9) {
-        if (!prefillCells.has(`${r}-${c}`)) {
-          puzzle[r][c] = num;
+      if (prefillCells.has(`${r}-${c}`)) return;
+
+      if (isNoteMode) {
+        // 노트 모드: 메모 토글
+        if (num === 0) {
+          notes[r][c].clear();
+        } else {
+          if (notes[r][c].has(num)) {
+            notes[r][c].delete(num);
+          } else {
+            notes[r][c].add(num);
+          }
         }
-      } else if (e.key === 'Backspace' || e.key === 'Delete') {
-        if (!prefillCells.has(`${r}-${c}`)) {
+      } else {
+        // 일반 모드: 숫자 입력 & 검증
+        if (num === 0) {
           puzzle[r][c] = 0;
+        } else {
+          puzzle[r][c] = num;
+          if (!isValid(puzzle, r, c, num)) {
+            // 오답 => 목숨 차감
+            lives--;
+            updateLives();
+            if (lives <= 0) {
+              alert('목숨이 모두 소진되었습니다! 게임 오버');
+              clearInterval(timerInt);
+              disableAllInput();
+            }
+          }
+          notes[r][c].clear(); // 입력하면 메모 초기화
         }
       }
       validate();
@@ -292,19 +356,47 @@
       checkWin();
     }
 
+    // 목숨 표시 업데이트
+    function updateLives() {
+      livesEl.textContent = `목숨: ${lives}`;
+      livesEl.style.color = lives <= 1 ? 'var(--danger)' : 'inherit';
+    }
+
+    // 입력 비활성화 (게임 오버 시)
+    function disableAllInput() {
+      selected = null;
+      // 클릭 불가하도록 셀 클릭 제거
+      for (const cell of boardEl.children) {
+        cell.onclick = null;
+      }
+      // 키패드 버튼 비활성화
+      document.querySelectorAll('.key').forEach(btn => btn.disabled = true);
+      // 노트 토글 비활성화
+      document.getElementById('noteToggle').disabled = true;
+      // 힌트 버튼 비활성화
+      document.getElementById('hintBtn').disabled = true;
+    }
+
+    // 입력(키보드)
+    function handleKeyDown(e) {
+      if (!selected) return;
+      if (e.key >= '1' && e.key <= '9') {
+        inputNumber(parseInt(e.key));
+      } else if (e.key === '0' || e.key === 'Backspace' || e.key === 'Delete') {
+        inputNumber(0);
+      }
+    }
+
+    // 퍼즐 검증
     function validate() {
-      for (let cell of boardEl.children) cell.classList.remove('invalid');
       for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
-          const val = puzzle[r][c];
-          if (val === 0) continue;
-          if (!isValid(puzzle, r, c, val)) {
-            boardEl.children[r * 9 + c].classList.add('invalid');
-          }
+          // 검증은 drawBoard에서 처리함 (클래스 토글)
         }
       }
     }
 
+    // 타이머
     const timerEl = document.getElementById('timer');
     function startTimer() {
       startTime = Date.now();
@@ -317,24 +409,37 @@
       }, 1000);
     }
 
+    // 새 게임
     function newGame() {
       const full = generateFullBoard();
       solution = deepCopy(full);
       puzzle = makePuzzle(full, difficultySelect.value);
       prefillCells = new Set();
       hintUsed = 0;
+      lives = 3;
+      updateLives();
+      isNoteMode = false;
+      document.getElementById('noteToggle').textContent = '메모 모드 OFF';
       hintLimit = difficultySelect.value === 'easy' ? 5 : difficultySelect.value === 'medium' ? 3 : 1;
       hintCountEl.textContent = `힌트: ${hintUsed}/${hintLimit}`;
       for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
           if (puzzle[r][c] !== 0) prefillCells.add(`${r}-${c}`);
+          notes[r][c].clear();
         }
       }
+      selected = null;
       drawBoard();
       validate();
       startTimer();
+
+      // 재활성화
+      document.querySelectorAll('.key').forEach(btn => btn.disabled = false);
+      document.getElementById('noteToggle').disabled = false;
+      document.getElementById('hintBtn').disabled = false;
     }
 
+    // 힌트 보여주기
     function showHint() {
       if (hintUsed >= hintLimit) {
         alert("힌트를 모두 사용했습니다!");
@@ -355,40 +460,24 @@
       }
     }
 
+    // 완성 체크
     function checkWin() {
-      for (let r = 0; r < 9; r++)
-        for (let c = 0; c < 9; c++)
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
           if (puzzle[r][c] !== solution[r][c]) return;
+        }
+      }
       clearInterval(timerInt);
-      setTimeout(() => alert("🎉 축하합니다! 퍼즐을 완료했습니다."), 100);
+      alert("🎉 축하합니다! 퍼즐을 완료했습니다.");
+      selected = null;
+      drawBoard();
     }
 
+    // 이벤트 바인딩
     document.getElementById('newGameBtn').onclick = newGame;
     document.getElementById('hintBtn').onclick = showHint;
-    document.getElementById('themeToggle').onclick = () => {
-      document.body.classList.toggle('light');
+    document.getElementById('noteToggle').onclick = () => {
+      isNoteMode = !isNoteMode;
+      document.getElementById('noteToggle').textContent = isNoteMode ? '메모 모드 ON' : '메모 모드 OFF';
     };
-    document.addEventListener('keydown', handleInput);
-
-    document.querySelectorAll('.key').forEach(btn => {
-      btn.onclick = () => {
-        if (!selected) return;
-        const { r, c } = selected;
-        if (prefillCells.has(`${r}-${c}`)) return;
-
-        const key = btn.dataset.key;
-        if (key === '0') {
-          puzzle[r][c] = 0;
-        } else {
-          puzzle[r][c] = parseInt(key);
-        }
-        validate();
-        drawBoard();
-        checkWin();
-      };
-    });
-
-    newGame();
-  </script>
-</body>
-</html>
+    document.getElementBy
