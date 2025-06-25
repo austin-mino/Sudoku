@@ -100,6 +100,7 @@
       outline: 2px solid var(--accent);
       z-index: 1;
     }
+    /* 3x3 구획 굵은 테두리 */
     .border-top {
       border-top: 2px solid var(--accent) !important;
     }
@@ -134,6 +135,29 @@
       margin: 0;
       user-select: none;
     }
+    #keypad {
+      margin-top: 10px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      max-width: 370px;
+      justify-content: center;
+    }
+    #keypad .key {
+      width: 40px;
+      height: 40px;
+      font-size: 1.1rem;
+      border-radius: 6px;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+      user-select: none;
+      font-weight: 600;
+    }
+    #keypad .key:hover {
+      background: #3a8ce0;
+    }
   </style>
 </head>
 <body>
@@ -148,7 +172,6 @@
     <button id="hintBtn"><i class="fa-solid fa-lightbulb"></i> 힌트</button>
     <button id="noteToggle">메모 모드 OFF</button>
     <button id="themeToggle"><i class="fa-solid fa-circle-half-stroke"></i></button>
-    <span id="hintCount"></span>
     <span id="lives">목숨: 3</span>
     <span id="timer">00:00</span>
   </div>
@@ -246,24 +269,23 @@
       return puzzle;
     }
 
-    // 상태 변수
     const boardEl = document.getElementById('board');
     const difficultySelect = document.getElementById('difficulty');
-    const hintCountEl = document.getElementById('hintCount');
     const livesEl = document.getElementById('lives');
     let puzzle = [], solution = [], prefillCells = new Set(), selected = null;
     let notes = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => new Set()));
-    let timerInt, startTime, hintLimit = 0, hintUsed = 0;
+    let timerInt, startTime;
     let lives = 3;
     let isNoteMode = false;
 
-    // 보드 그리기
     function drawBoard() {
       boardEl.innerHTML = '';
       for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
           const cell = document.createElement('div');
           cell.className = 'cell';
+
+          // 3x3 굵은 선
           if (r % 3 === 0) cell.classList.add('border-top');
           if (c % 3 === 0) cell.classList.add('border-left');
           if (r === 8) cell.classList.add('border-bottom');
@@ -283,16 +305,11 @@
               cell.classList.add('invalid');
             }
           } else if (notes[r][c].size > 0) {
-            // 메모 표시
             const notesDiv = document.createElement('div');
             notesDiv.className = 'notes';
             for (let n = 1; n <= 9; n++) {
               const noteCell = document.createElement('div');
-              if (notes[r][c].has(n)) {
-                noteCell.textContent = n;
-              } else {
-                noteCell.textContent = '';
-              }
+              noteCell.textContent = notes[r][c].has(n) ? n : '';
               notesDiv.appendChild(noteCell);
             }
             cell.appendChild(notesDiv);
@@ -308,21 +325,19 @@
       }
     }
 
-    // 셀 선택
     function selectCell(r, c) {
       if (prefillCells.has(`${r}-${c}`)) return;
       selected = { r, c };
       drawBoard();
     }
 
-    // 입력 처리 (키보드 및 키패드)
     function inputNumber(num) {
       if (!selected) return;
       const { r, c } = selected;
       if (prefillCells.has(`${r}-${c}`)) return;
 
       if (isNoteMode) {
-        // 노트 모드: 메모 토글
+        // 메모 모드: 메모 추가/제거
         if (num === 0) {
           notes[r][c].clear();
         } else {
@@ -333,13 +348,12 @@
           }
         }
       } else {
-        // 일반 모드: 숫자 입력 & 검증
+        // 일반 모드: 숫자 입력 및 검증
         if (num === 0) {
           puzzle[r][c] = 0;
         } else {
           puzzle[r][c] = num;
           if (!isValid(puzzle, r, c, num)) {
-            // 오답 => 목숨 차감
             lives--;
             updateLives();
             if (lives <= 0) {
@@ -348,7 +362,7 @@
               disableAllInput();
             }
           }
-          notes[r][c].clear(); // 입력하면 메모 초기화
+          notes[r][c].clear();
         }
       }
       validate();
@@ -356,28 +370,22 @@
       checkWin();
     }
 
-    // 목숨 표시 업데이트
     function updateLives() {
       livesEl.textContent = `목숨: ${lives}`;
       livesEl.style.color = lives <= 1 ? 'var(--danger)' : 'inherit';
     }
 
-    // 입력 비활성화 (게임 오버 시)
     function disableAllInput() {
       selected = null;
-      // 클릭 불가하도록 셀 클릭 제거
       for (const cell of boardEl.children) {
         cell.onclick = null;
       }
-      // 키패드 버튼 비활성화
       document.querySelectorAll('.key').forEach(btn => btn.disabled = true);
-      // 노트 토글 비활성화
       document.getElementById('noteToggle').disabled = true;
-      // 힌트 버튼 비활성화
       document.getElementById('hintBtn').disabled = true;
+      document.removeEventListener('keydown', handleKeyDown);
     }
 
-    // 입력(키보드)
     function handleKeyDown(e) {
       if (!selected) return;
       if (e.key >= '1' && e.key <= '9') {
@@ -387,16 +395,10 @@
       }
     }
 
-    // 퍼즐 검증
     function validate() {
-      for (let r = 0; r < 9; r++) {
-        for (let c = 0; c < 9; c++) {
-          // 검증은 drawBoard에서 처리함 (클래스 토글)
-        }
-      }
+      // 실제 검증은 drawBoard에서 처리 (invalid 클래스)
     }
 
-    // 타이머
     const timerEl = document.getElementById('timer');
     function startTimer() {
       startTime = Date.now();
@@ -409,19 +411,15 @@
       }, 1000);
     }
 
-    // 새 게임
     function newGame() {
       const full = generateFullBoard();
       solution = deepCopy(full);
       puzzle = makePuzzle(full, difficultySelect.value);
       prefillCells = new Set();
-      hintUsed = 0;
       lives = 3;
       updateLives();
       isNoteMode = false;
       document.getElementById('noteToggle').textContent = '메모 모드 OFF';
-      hintLimit = difficultySelect.value === 'easy' ? 5 : difficultySelect.value === 'medium' ? 3 : 1;
-      hintCountEl.textContent = `힌트: ${hintUsed}/${hintLimit}`;
       for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
           if (puzzle[r][c] !== 0) prefillCells.add(`${r}-${c}`);
@@ -433,24 +431,18 @@
       validate();
       startTimer();
 
-      // 재활성화
       document.querySelectorAll('.key').forEach(btn => btn.disabled = false);
       document.getElementById('noteToggle').disabled = false;
       document.getElementById('hintBtn').disabled = false;
+      document.addEventListener('keydown', handleKeyDown);
     }
 
-    // 힌트 보여주기
     function showHint() {
-      if (hintUsed >= hintLimit) {
-        alert("힌트를 모두 사용했습니다!");
-        return;
-      }
       for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
           if (puzzle[r][c] === 0) {
             puzzle[r][c] = solution[r][c];
-            hintUsed++;
-            hintCountEl.textContent = `힌트: ${hintUsed}/${hintLimit}`;
+            notes[r][c].clear();
             drawBoard();
             validate();
             checkWin();
@@ -458,9 +450,9 @@
           }
         }
       }
+      alert("힌트가 더 이상 없습니다.");
     }
 
-    // 완성 체크
     function checkWin() {
       for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
@@ -469,15 +461,29 @@
       }
       clearInterval(timerInt);
       alert("🎉 축하합니다! 퍼즐을 완료했습니다.");
-      selected = null;
-      drawBoard();
+      disableAllInput();
     }
 
-    // 이벤트 바인딩
     document.getElementById('newGameBtn').onclick = newGame;
     document.getElementById('hintBtn').onclick = showHint;
     document.getElementById('noteToggle').onclick = () => {
       isNoteMode = !isNoteMode;
       document.getElementById('noteToggle').textContent = isNoteMode ? '메모 모드 ON' : '메모 모드 OFF';
     };
-    document.getElementBy
+    document.getElementById('themeToggle').onclick = () => {
+      document.body.classList.toggle('light');
+    };
+
+    // 키패드 버튼 클릭 이벤트
+    document.querySelectorAll('#keypad .key').forEach(btn => {
+      btn.onclick = () => {
+        const key = btn.dataset.key;
+        inputNumber(parseInt(key));
+      };
+    });
+
+    // 시작
+    newGame();
+  </script>
+</body>
+</html>
