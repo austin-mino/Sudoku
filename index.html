@@ -1,25 +1,95 @@
-<!DOCTYPE html><html lang="ko">
+<!DOCTYPE html>
+<html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sudoku Pro</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <style>
-    :root{
-      --bg:#0e1014;--card:#1c1f26;--accent:#4f9eff;--text:#e2e2e2;--danger:#ff6b6b;--radius:10px;
+    :root {
+      --bg: #0e1014;
+      --card: #1c1f26;
+      --accent: #4f9eff;
+      --text: #e2e2e2;
+      --danger: #ff6b6b;
+      --radius: 10px;
     }
-    body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;margin:0;padding:20px;display:flex;flex-direction:column;align-items:center;min-height:100vh}
-    h1{margin:0 0 1rem;color:var(--accent)}
-    #controls{margin-bottom:1rem;display:flex;gap:8px;flex-wrap:wrap}
-    button,select{background:var(--accent);border:none;color:#fff;padding:8px 14px;border-radius:var(--radius);font-weight:600;cursor:pointer}
-    button:hover{background:#3a8ce0}
-    #timer{font-weight:600;margin-left:8px}
-    #board{display:grid;grid-template-columns:repeat(9,40px);grid-template-rows:repeat(9,40px);gap:2px}
-    .cell{width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:var(--card);border-radius:4px;font-size:1.1rem;cursor:pointer;user-select:none}
-    .cell.prefill{background:#282c34;font-weight:700}
-    .cell.invalid{color:var(--danger)}
-    .subgrid-border{box-shadow:0 0 0 2px var(--accent) inset}
+    body.light {
+      --bg: #f4f4f4;
+      --card: #ffffff;
+      --text: #222;
+      --accent: #4f9eff;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      transition: background 0.3s, color 0.3s;
+    }
+    h1 {
+      margin: 0 0 1rem;
+      color: var(--accent);
+    }
+    #controls {
+      margin-bottom: 1rem;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    button, select {
+      background: var(--accent);
+      border: none;
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: var(--radius);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #3a8ce0;
+    }
+    #timer {
+      font-weight: 600;
+    }
+    #board {
+      display: grid;
+      grid-template-columns: repeat(9, 40px);
+      grid-template-rows: repeat(9, 40px);
+      gap: 2px;
+    }
+    .cell {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--card);
+      border-radius: 4px;
+      font-size: 1.1rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .cell.prefill {
+      background: #282c34;
+      font-weight: 700;
+    }
+    .cell.invalid {
+      color: var(--danger);
+    }
+    .cell.selected {
+      outline: 2px solid var(--accent);
+    }
+    .subgrid-border {
+      box-shadow: 0 0 0 2px var(--accent) inset;
+    }
   </style>
 </head>
 <body>
@@ -32,104 +102,223 @@
     </select>
     <button id="newGameBtn">새 게임</button>
     <button id="hintBtn"><i class="fa-solid fa-lightbulb"></i> 힌트</button>
+    <button id="themeToggle"><i class="fa-solid fa-circle-half-stroke"></i></button>
+    <span id="hintCount"></span>
     <span id="timer">00:00</span>
   </div>
-  <div id="board"></div>  <script>
-    // ===== Utility: deep copy =====
-    const deepCopy=m=>m.map(r=>r.slice());
+  <div id="board"></div>
 
-    // ===== Sudoku Generator & Solver =====
-    function isValid(board,row,col,num){
-      for(let i=0;i<9;i++){if(board[row][i]==num||board[i][col]==num)return false;}
-      const sr=Math.floor(row/3)*3,sc=Math.floor(col/3)*3;
-      for(let r=sr;r<sr+3;r++)for(let c=sc;c<sc+3;c++){if(board[r][c]==num)return false;}
+  <script>
+    const deepCopy = m => m.map(r => r.slice());
+
+    function isValid(board, row, col, num) {
+      for (let i = 0; i < 9; i++) {
+        if ((i !== col && board[row][i] === num) || (i !== row && board[i][col] === num)) return false;
+      }
+      const sr = Math.floor(row / 3) * 3;
+      const sc = Math.floor(col / 3) * 3;
+      for (let r = sr; r < sr + 3; r++) {
+        for (let c = sc; c < sc + 3; c++) {
+          if ((r !== row || c !== col) && board[r][c] === num) return false;
+        }
+      }
       return true;
     }
-    function solve(board){
-      for(let r=0;r<9;r++)for(let c=0;c<9;c++)if(board[r][c]===0){
-        for(let n=1;n<=9;n++){
-          if(isValid(board,r,c,n)){
-            board[r][c]=n;
-            if(solve(board))return true;
-            board[r][c]=0;
+
+    function solve(board) {
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (board[r][c] === 0) {
+            for (let n = 1; n <= 9; n++) {
+              if (isValid(board, r, c, n)) {
+                board[r][c] = n;
+                if (solve(board)) return true;
+                board[r][c] = 0;
+              }
+            }
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function generateFullBoard() {
+      const board = Array.from({ length: 9 }, () => Array(9).fill(0));
+      const nums = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+      function fill(r = 0, c = 0) {
+        if (r === 9) return true;
+        const [nr, nc] = c === 8 ? [r + 1, 0] : [r, c + 1];
+        for (const n of shuffle(nums)) {
+          if (isValid(board, r, c, n)) {
+            board[r][c] = n;
+            if (fill(nr, nc)) return true;
+            board[r][c] = 0;
           }
         }
         return false;
       }
-      return true;
+      fill();
+      return board;
     }
-    function shuffle(arr){for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
-    function generateFullBoard(){const board=Array.from({length:9},()=>Array(9).fill(0));
-      const nums=[1,2,3,4,5,6,7,8,9];
-      function fill(r=0,c=0){if(r===9)return true;const [nr,nc]=c===8?[r+1,0]:[r,c+1];
-        for(const n of shuffle(nums))if(isValid(board,r,c,n)){board[r][c]=n;if(fill(nr,nc))return true;board[r][c]=0;}
-        return false;
-      }
-      fill();return board;
-    }
-    function makePuzzle(fullBoard,difficulty){const puzzle=deepCopy(fullBoard);
-      let attempts=difficulty==='easy'?35:difficulty==='medium'?45:55; // higher==harder
-      while(attempts>0){const r=Math.floor(Math.random()*9),c=Math.floor(Math.random()*9);
-        if(puzzle[r][c]!==0){const backup=puzzle[r][c];puzzle[r][c]=0;
-          const boardCopy=deepCopy(puzzle);
-          if(!solve(boardCopy))puzzle[r][c]=backup;else attempts--;}
+
+    function makePuzzle(fullBoard, difficulty) {
+      const puzzle = deepCopy(fullBoard);
+      let attempts = difficulty === 'easy' ? 35 : difficulty === 'medium' ? 45 : 55;
+      while (attempts > 0) {
+        const r = Math.floor(Math.random() * 9);
+        const c = Math.floor(Math.random() * 9);
+        if (puzzle[r][c] !== 0) {
+          const backup = puzzle[r][c];
+          puzzle[r][c] = 0;
+          const copy = deepCopy(puzzle);
+          if (!solve(copy)) {
+            puzzle[r][c] = backup;
+          } else {
+            attempts--;
+          }
+        }
       }
       return puzzle;
     }
 
-    // ===== UI =====
-    const boardEl=document.getElementById('board');
-    const difficultySelect=document.getElementById('difficulty');
-    let puzzle=[],solution=[],prefillCells=new Set(),selected=null,timerInt,startTime;
+    const boardEl = document.getElementById('board');
+    const difficultySelect = document.getElementById('difficulty');
+    const hintCountEl = document.getElementById('hintCount');
+    let puzzle = [], solution = [], prefillCells = new Set(), selected = null;
+    let timerInt, startTime, hintLimit = 0, hintUsed = 0;
 
-    function drawBoard(){boardEl.innerHTML='';
-      for(let r=0;r<9;r++)for(let c=0;c<9;c++){
-        const cell=document.createElement('div');cell.className='cell';
-        if((r%3===0&&c%3===0))cell.classList.add('subgrid-border');
-        const val=puzzle[r][c];
-        if(val!==0){cell.textContent=val;cell.classList.add('prefill');}
-        cell.dataset.pos=`${r}-${c}`;
-        cell.onclick=()=>selectCell(r,c);
-        boardEl.appendChild(cell);
-      }
-    }
-    function selectCell(r,c){const key= `${r}-${c}`;
-      if(prefillCells.has(key))return;
-      selected={r,c};
-      document.addEventListener('keydown',handleInput,{once:true});
-    }
-    function handleInput(e){if(!selected)return;const num=parseInt(e.key);if(num>=1&&num<=9){const {r,c}=selected;puzzle[r][c]=num;validate();drawBoard();} if(e.key==='Backspace'||e.key==='Delete'){const {r,c}=selected;puzzle[r][c]=0;drawBoard();}}
-    function validate(){for(let cell of boardEl.children)cell.classList.remove('invalid');
-      for(let r=0;r<9;r++)for(let c=0;c<9;c++){
-        const val=puzzle[r][c];if(val===0)continue;
-        if(!isValid(puzzle,r,c,val)){
-          boardEl.children[r*9+c].classList.add('invalid');
+    function drawBoard() {
+      boardEl.innerHTML = '';
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          if ((r % 3 === 0 && c % 3 === 0)) cell.classList.add('subgrid-border');
+          if (selected && selected.r === r && selected.c === c) cell.classList.add('selected');
+          const val = puzzle[r][c];
+          if (val !== 0) {
+            cell.textContent = val;
+            cell.classList.add('prefill');
+          }
+          const key = `${r}-${c}`;
+          cell.dataset.pos = key;
+          if (!prefillCells.has(key)) {
+            cell.onclick = () => selectCell(r, c);
+          }
+          boardEl.appendChild(cell);
         }
       }
     }
 
-    // ===== Timer =====
-    const timerEl=document.getElementById('timer');
-    function startTimer(){startTime=Date.now();clearInterval(timerInt);timerInt=setInterval(()=>{
-      const diff=Math.floor((Date.now()-startTime)/1000);
-      const m=String(Math.floor(diff/60)).padStart(2,'0');
-      const s=String(diff%60).padStart(2,'0');timerEl.textContent=`${m}:${s}`;},1000);}    
+    function selectCell(r, c) {
+      const key = `${r}-${c}`;
+      if (prefillCells.has(key)) return;
+      selected = { r, c };
+      drawBoard();
+      document.addEventListener('keydown', handleInput, { once: true });
+    }
 
-    // ===== Controls =====
-    document.getElementById('newGameBtn').onclick=newGame;
-    document.getElementById('hintBtn').onclick=showHint;
-    function newGame(){const full=generateFullBoard();solution=deepCopy(full);
-      puzzle=makePuzzle(full,difficultySelect.value);
-      prefillCells=new Set();for(let r=0;r<9;r++)for(let c=0;c<9;c++)if(puzzle[r][c]!==0)prefillCells.add(`${r}-${c}`);
-      drawBoard();startTimer();validate();}
-    function showHint(){for(let r=0;r<9;r++)for(let c=0;c<9;c++)if(puzzle[r][c]===0){puzzle[r][c]=solution[r][c];drawBoard();validate();return;}}
+    function handleInput(e) {
+      if (!selected) return;
+      const num = parseInt(e.key);
+      const { r, c } = selected;
+      if (num >= 1 && num <= 9) {
+        puzzle[r][c] = num;
+      } else if (e.key === 'Backspace' || e.key === 'Delete') {
+        puzzle[r][c] = 0;
+      }
+      validate();
+      drawBoard();
+      checkWin();
+    }
 
-    // ===== Theme toggle =====
-    document.getElementById('themeToggle').onclick=()=>{
+    function validate() {
+      for (let cell of boardEl.children) cell.classList.remove('invalid');
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          const val = puzzle[r][c];
+          if (val === 0) continue;
+          if (!isValid(puzzle, r, c, val)) {
+            boardEl.children[r * 9 + c].classList.add('invalid');
+          }
+        }
+      }
+    }
+
+    const timerEl = document.getElementById('timer');
+    function startTimer() {
+      startTime = Date.now();
+      clearInterval(timerInt);
+      timerInt = setInterval(() => {
+        const diff = Math.floor((Date.now() - startTime) / 1000);
+        const m = String(Math.floor(diff / 60)).padStart(2, '0');
+        const s = String(diff % 60).padStart(2, '0');
+        timerEl.textContent = `${m}:${s}`;
+      }, 1000);
+    }
+
+    function newGame() {
+      const full = generateFullBoard();
+      solution = deepCopy(full);
+      puzzle = makePuzzle(full, difficultySelect.value);
+      prefillCells = new Set();
+      hintUsed = 0;
+      hintLimit = difficultySelect.value === 'easy' ? 5 : difficultySelect.value === 'medium' ? 3 : 1;
+      hintCountEl.textContent = `힌트: ${hintUsed}/${hintLimit}`;
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (puzzle[r][c] !== 0) prefillCells.add(`${r}-${c}`);
+        }
+      }
+      drawBoard();
+      validate();
+      startTimer();
+    }
+
+    function showHint() {
+      if (hintUsed >= hintLimit) {
+        alert("힌트를 모두 사용했습니다!");
+        return;
+      }
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (puzzle[r][c] === 0) {
+            puzzle[r][c] = solution[r][c];
+            hintUsed++;
+            hintCountEl.textContent = `힌트: ${hintUsed}/${hintLimit}`;
+            drawBoard();
+            validate();
+            checkWin();
+            return;
+          }
+        }
+      }
+    }
+
+    function checkWin() {
+      for (let r = 0; r < 9; r++)
+        for (let c = 0; c < 9; c++)
+          if (puzzle[r][c] !== solution[r][c]) return;
+      clearInterval(timerInt);
+      setTimeout(() => alert("🎉 축하합니다! 퍼즐을 완료했습니다."), 100);
+    }
+
+    document.getElementById('newGameBtn').onclick = newGame;
+    document.getElementById('hintBtn').onclick = showHint;
+    document.getElementById('themeToggle').onclick = () => {
       document.body.classList.toggle('light');
     };
 
-    // ===== Start =====
     newGame();
-  </script></body>
+  </script>
+</body>
 </html>
