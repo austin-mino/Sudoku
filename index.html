@@ -2,9 +2,9 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Sudoku Pro</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <style>
     :root {
@@ -19,7 +19,6 @@
       --bg: #f4f4f4;
       --card: #ffffff;
       --text: #222;
-      --accent: #4f9eff;
     }
     body {
       background: var(--bg);
@@ -31,7 +30,6 @@
       flex-direction: column;
       align-items: center;
       min-height: 100vh;
-      transition: background 0.3s, color 0.3s;
     }
     h1 {
       margin: 0 0 1rem;
@@ -63,7 +61,6 @@
       display: grid;
       grid-template-columns: repeat(9, 40px);
       grid-template-rows: repeat(9, 40px);
-      gap: 0;
     }
     .cell {
       width: 40px;
@@ -76,7 +73,7 @@
       cursor: pointer;
       user-select: none;
       box-sizing: border-box;
-      border: 1px solid #555;
+      border: 1px solid #444;
     }
     .cell.prefill {
       background: #282c34;
@@ -100,6 +97,27 @@
     .border-bottom {
       border-bottom: 2px solid var(--accent) !important;
     }
+    #keypad {
+      margin-top: 20px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .key {
+      background: var(--card);
+      color: var(--text);
+      font-size: 1.2rem;
+      padding: 10px 16px;
+      border-radius: 8px;
+      border: 2px solid var(--accent);
+      cursor: pointer;
+      min-width: 40px;
+    }
+    .key:hover {
+      background: var(--accent);
+      color: white;
+    }
   </style>
 </head>
 <body>
@@ -116,7 +134,21 @@
     <span id="hintCount"></span>
     <span id="timer">00:00</span>
   </div>
+
   <div id="board"></div>
+
+  <div id="keypad">
+    <button class="key" data-key="1">1</button>
+    <button class="key" data-key="2">2</button>
+    <button class="key" data-key="3">3</button>
+    <button class="key" data-key="4">4</button>
+    <button class="key" data-key="5">5</button>
+    <button class="key" data-key="6">6</button>
+    <button class="key" data-key="7">7</button>
+    <button class="key" data-key="8">8</button>
+    <button class="key" data-key="9">9</button>
+    <button class="key" data-key="0">지우기</button>
+  </div>
 
   <script>
     const deepCopy = m => m.map(r => r.slice());
@@ -213,16 +245,19 @@
           if (r === 8) cell.classList.add('border-bottom');
           if (c === 8) cell.classList.add('border-right');
 
-          if (selected && selected.r === r && selected.c === c)
+          const key = `${r}-${c}`;
+          if (selected && selected.r === r && selected.c === c) {
             cell.classList.add('selected');
+          }
 
           const val = puzzle[r][c];
           if (val !== 0) {
             cell.textContent = val;
-            cell.classList.add('prefill');
+            if (prefillCells.has(key)) {
+              cell.classList.add('prefill');
+            }
           }
 
-          const key = `${r}-${c}`;
           cell.dataset.pos = key;
           if (!prefillCells.has(key)) {
             cell.onclick = () => selectCell(r, c);
@@ -334,6 +369,24 @@
       document.body.classList.toggle('light');
     };
     document.addEventListener('keydown', handleInput);
+
+    document.querySelectorAll('.key').forEach(btn => {
+      btn.onclick = () => {
+        if (!selected) return;
+        const { r, c } = selected;
+        if (prefillCells.has(`${r}-${c}`)) return;
+
+        const key = btn.dataset.key;
+        if (key === '0') {
+          puzzle[r][c] = 0;
+        } else {
+          puzzle[r][c] = parseInt(key);
+        }
+        validate();
+        drawBoard();
+        checkWin();
+      };
+    });
 
     newGame();
   </script>
