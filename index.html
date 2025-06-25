@@ -132,7 +132,7 @@
       <option value="hard">어려움</option>
     </select>
     <button id="newGameBtn">새 게임</button>
-    <button id="hintBtn">힌트</button>
+    <button id="hintBtn">힌트 (<span id="hintCount">3</span>)</button>
     <button id="noteToggle">메모 OFF</button>
     <span id="lives">❤️❤️❤️</span>
   </div>
@@ -149,175 +149,282 @@
     <button class="key" data-key="9">9</button>
     <button class="key" data-key="0"><span style="white-space:nowrap;">지우기</span></button>
   </div>
+
   <script>
-// Sudoku Generator
-function deepCopy(m) {
-  return m.map(r => r.slice());
-}
-function isValid(board, row, col, num) {
-  for (let i = 0; i < 9; i++) {
-    if (board[row][i] === num || board[i][col] === num) return false;
-  }
-  const sr = Math.floor(row / 3) * 3, sc = Math.floor(col / 3) * 3;
-  for (let r = sr; r < sr + 3; r++)
-    for (let c = sc; c < sc + 3; c++)
-      if (board[r][c] === num) return false;
-  return true;
-}
-function solve(board) {
-  for (let r = 0; r < 9; r++)
-    for (let c = 0; c < 9; c++)
-      if (board[r][c] === 0) {
-        for (let n = 1; n <= 9; n++) {
+    // 깊은 복사 함수
+    function deepCopy(m) {
+      return m.map(r => r.slice());
+    }
+
+    // 숫자 유효 검사
+    function isValid(board, row, col, num) {
+      for (let i = 0; i < 9; i++) {
+        if (board[row][i] === num || board[i][col] === num) return false;
+      }
+      const sr = Math.floor(row / 3) * 3;
+      const sc = Math.floor(col / 3) * 3;
+      for (let r = sr; r < sr + 3; r++) {
+        for (let c = sc; c < sc + 3; c++) {
+          if (board[r][c] === num) return false;
+        }
+      }
+      return true;
+    }
+
+    // 백트래킹 해결기
+    function solve(board) {
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (board[r][c] === 0) {
+            for (let n = 1; n <= 9; n++) {
+              if (isValid(board, r, c, n)) {
+                board[r][c] = n;
+                if (solve(board)) return true;
+                board[r][c] = 0;
+              }
+            }
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+
+    // 배열 섞기
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    // 완성된 보드 생성
+    function generateFullBoard() {
+      const board = Array.from({ length: 9 }, () => Array(9).fill(0));
+      const nums = shuffle([1,2,3,4,5,6,7,8,9]);
+      function fill(r=0, c=0) {
+        if (r === 9) return true;
+        const [nr, nc] = c === 8 ? [r+1, 0] : [r, c+1];
+        for (const n of nums) {
           if (isValid(board, r, c, n)) {
             board[r][c] = n;
-            if (solve(board)) return true;
+            if (fill(nr, nc)) return true;
             board[r][c] = 0;
           }
         }
         return false;
       }
-  return true;
-}
-function shuffle(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-function generateFullBoard() {
-  const board = Array.from({ length: 9 }, () => Array(9).fill(0));
-  const nums = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]);
-  function fill(r = 0, c = 0) {
-    if (r === 9) return true;
-    const [nr, nc] = c === 8 ? [r + 1, 0] : [r, c + 1];
-    for (const n of nums) {
-      if (isValid(board, r, c, n)) {
-        board[r][c] = n;
-        if (fill(nr, nc)) return true;
-        board[r][c] = 0;
-      }
+      fill();
+      return board;
     }
-    return false;
-  }
-  fill();
-  return board;
-}
-function makePuzzle(fullBoard, difficulty) {
-  const puzzle = deepCopy(fullBoard);
-  let attempts = difficulty === 'easy' ? 35 : difficulty === 'medium' ? 45 : 55;
-  while (attempts > 0) {
-    const r = Math.floor(Math.random() * 9);
-    const c = Math.floor(Math.random() * 9);
-    if (puzzle[r][c] !== 0) {
-      const backup = puzzle[r][c];
-      puzzle[r][c] = 0;
-      const boardCopy = deepCopy(puzzle);
-      if (!solve(boardCopy)) puzzle[r][c] = backup;
-      else attempts--;
-    }
-  }
-  return puzzle;
-}
 
-// State
-let puzzle = [], solution = [], prefill = new Set(), selected = null;
-let notes = {}, noteMode = false, lives = 3;
-
-// UI elements
-const boardEl = document.getElementById('board');
-const difficultyEl = document.getElementById('difficulty');
-const livesEl = document.getElementById('lives');
-const noteToggleBtn = document.getElementById('noteToggle');
-
-function drawBoard() {
-  boardEl.innerHTML = '';
-  for (let r = 0; r < 9; r++) {
-    for (let c = 0; c < 9; c++) {
-      const val = puzzle[r][c];
-      const cell = document.createElement('div');
-      cell.className = 'cell';
-      cell.dataset.pos = `${r}-${c}`;
-      if (val !== 0) {
-        cell.textContent = val;
-        cell.classList.add('prefill');
-        prefill.add(`${r}-${c}`);
-      } else if (notes[`${r}-${c}`]) {
-        const noteEl = document.createElement('div');
-        noteEl.className = 'notes';
-        for (let i = 1; i <= 9; i++) {
-          const note = document.createElement('div');
-          note.textContent = notes[`${r}-${c}`].includes(i) ? i : '';
-          noteEl.appendChild(note);
+    // 난이도에 따른 퍼즐 생성 (빈칸 만들기)
+    function makePuzzle(fullBoard, difficulty) {
+      const puzzle = deepCopy(fullBoard);
+      let attempts = difficulty === 'easy' ? 35 : difficulty === 'medium' ? 45 : 55;
+      while (attempts > 0) {
+        const r = Math.floor(Math.random() * 9);
+        const c = Math.floor(Math.random() * 9);
+        if (puzzle[r][c] !== 0) {
+          const backup = puzzle[r][c];
+          puzzle[r][c] = 0;
+          const copy = deepCopy(puzzle);
+          if (!solve(copy)) puzzle[r][c] = backup;
+          else attempts--;
         }
-        cell.appendChild(noteEl);
       }
-      if (selected && selected.r === r && selected.c === c) cell.classList.add('selected');
-      if (r % 3 === 0) cell.classList.add('border-top');
-      if (c % 3 === 0) cell.classList.add('border-left');
-      if ((c + 1) % 3 === 0) cell.classList.add('border-right');
-      if ((r + 1) % 3 === 0) cell.classList.add('border-bottom');
-      cell.onclick = () => selectCell(r, c);
-      boardEl.appendChild(cell);
+      return puzzle;
     }
-  }
-}
-function selectCell(r, c) {
-  if (prefill.has(`${r}-${c}`)) return;
-  selected = { r, c };
-  drawBoard();
-}
-function handleInput(n) {
-  if (!selected) return;
-  const key = `${selected.r}-${selected.c}`;
-  if (n === 0) {
-    puzzle[selected.r][selected.c] = 0;
-    delete notes[key];
-  } else if (noteMode) {
-    if (!notes[key]) notes[key] = [];
-    if (notes[key].includes(n)) notes[key] = notes[key].filter(x => x !== n);
-    else notes[key].push(n);
-  } else {
-    if (solution[selected.r][selected.c] !== n) {
-      lives--;
-      livesEl.textContent = '❤️'.repeat(lives);
-      if (lives === 0) alert('게임 오버!');
+
+    // 상태 및 요소
+    let puzzle = [];
+    let solution = [];
+    let prefill = new Set();
+    let selected = null;
+    let notes = {};
+    let noteMode = false;
+    let lives = 3;
+    let hintCount = 3;
+
+    const boardEl = document.getElementById('board');
+    const difficultyEl = document.getElementById('difficulty');
+    const livesEl = document.getElementById('lives');
+    const noteToggleBtn = document.getElementById('noteToggle');
+    const hintBtn = document.getElementById('hintBtn');
+    const hintCountEl = document.getElementById('hintCount');
+
+    // 보드 그리기
+    function drawBoard() {
+      boardEl.innerHTML = '';
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          const val = puzzle[r][c];
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.dataset.pos = `${r}-${c}`;
+
+          // 3x3 두꺼운 선 테두리 추가
+          if (r % 3 === 0) cell.classList.add('border-top');
+          if (c % 3 === 0) cell.classList.add('border-left');
+          if ((c + 1) % 3 === 0) cell.classList.add('border-right');
+          if ((r + 1) % 3 === 0) cell.classList.add('border-bottom');
+
+          // 기본 숫자 표시
+          if (val !== 0) {
+            cell.textContent = val;
+            if (prefill.has(`${r}-${c}`)) {
+              cell.classList.add('prefill');
+            } else {
+              // 사용자가 입력한 숫자가 정답과 다르면 빨간색
+              if (val !== solution[r][c]) {
+                cell.classList.add('invalid');
+              }
+            }
+          } else if (notes[`${r}-${c}`]) {
+            // 메모 표시
+            const noteEl = document.createElement('div');
+            noteEl.className = 'notes';
+            for (let i = 1; i <= 9; i++) {
+              const noteCell = document.createElement('div');
+              noteCell.textContent = notes[`${r}-${c}`].includes(i) ? i : '';
+              noteEl.appendChild(noteCell);
+            }
+            cell.appendChild(noteEl);
+          }
+
+          // 선택 셀 표시
+          if (selected && selected.r === r && selected.c === c) {
+            cell.classList.add('selected');
+          }
+
+          // 클릭 시 선택
+          cell.onclick = () => selectCell(r, c);
+
+          boardEl.appendChild(cell);
+        }
+      }
     }
-    puzzle[selected.r][selected.c] = n;
-    delete notes[key];
-  }
-  drawBoard();
-}
-function newGame() {
-  const full = generateFullBoard();
-  solution = deepCopy(full);
-  puzzle = makePuzzle(full, difficultyEl.value);
-  prefill.clear();
-  notes = {};
-  selected = null;
-  lives = 3;
-  livesEl.textContent = '❤️❤️❤️';
-  drawBoard();
-}
-document.getElementById('newGameBtn').onclick = newGame;
-document.getElementById('hintBtn').onclick = () => {
-  for (let r = 0; r < 9; r++)
-    for (let c = 0; c < 9; c++)
-      if (puzzle[r][c] === 0) {
-        puzzle[r][c] = solution[r][c];
-        drawBoard();
+
+    // 셀 선택
+    function selectCell(r, c) {
+      if (prefill.has(`${r}-${c}`)) return; // 기본 숫자는 선택 불가
+      selected = { r, c };
+      drawBoard();
+    }
+
+    // 숫자 입력 처리
+    function handleInput(n) {
+      if (!selected) return;
+      const key = `${selected.r}-${selected.c}`;
+      if (n === 0) {
+        // 지우기
+        puzzle[selected.r][selected.c] = 0;
+        delete notes[key];
+      } else if (noteMode) {
+        // 메모 모드: 토글 방식으로 숫자 추가/제거
+        if (!notes[key]) notes[key] = [];
+        if (notes[key].includes(n)) {
+          notes[key] = notes[key].filter(x => x !== n);
+          if (notes[key].length === 0) delete notes[key];
+        } else {
+          notes[key].push(n);
+          notes[key].sort();
+        }
+      } else {
+        // 일반 입력 모드: 정답과 비교하여 틀리면 목숨 차감
+        if (solution[selected.r][selected.c] !== n) {
+          lives--;
+          livesEl.textContent = '❤️'.repeat(lives);
+          if (lives === 0) {
+            alert('게임 오버! 새 게임을 시작합니다.');
+            newGame();
+            return;
+          }
+        }
+        puzzle[selected.r][selected.c] = n;
+        delete notes[key];
+      }
+      drawBoard();
+      checkWin();
+    }
+
+    // 게임 승리 체크
+    function checkWin() {
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (puzzle[r][c] === 0 || puzzle[r][c] !== solution[r][c]) {
+            return false;
+          }
+        }
+      }
+      setTimeout(() => alert('축하합니다! 퍼즐을 완성했습니다!'), 100);
+      return true;
+    }
+
+    // 새 게임 시작
+    function newGame() {
+      const full = generateFullBoard();
+      solution = deepCopy(full);
+      puzzle = makePuzzle(full, difficultyEl.value);
+      prefill = new Set();
+      notes = {};
+      selected = null;
+      lives = 3;
+      hintCount = 3;
+      livesEl.textContent = '❤️❤️❤️';
+      hintCountEl.textContent = hintCount;
+
+      // 기본 숫자 위치 저장
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (puzzle[r][c] !== 0) {
+            prefill.add(`${r}-${c}`);
+          }
+        }
+      }
+      drawBoard();
+    }
+
+    // 힌트 사용
+    hintBtn.onclick = () => {
+      if (hintCount <= 0) {
+        alert('힌트를 모두 사용했습니다.');
         return;
       }
-};
-document.querySelectorAll('#keypad .key').forEach(btn => {
-  btn.onclick = () => handleInput(parseInt(btn.dataset.key));
-});
-noteToggleBtn.onclick = () => {
-  noteMode = !noteMode;
-  noteToggleBtn.textContent = noteMode ? '메모 ON' : '메모 OFF';
-};
-newGame();
-</script>
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (puzzle[r][c] === 0) {
+            puzzle[r][c] = solution[r][c];
+            hintCount--;
+            hintCountEl.textContent = hintCount;
+            drawBoard();
+            checkWin();
+            return;
+          }
+        }
+      }
+    };
+
+    // 새 게임 버튼
+    document.getElementById('newGameBtn').onclick = newGame;
+
+    // 메모 모드 토글
+    noteToggleBtn.onclick = () => {
+      noteMode = !noteMode;
+      noteToggleBtn.textContent = noteMode ? '메모 ON' : '메모 OFF';
+    };
+
+    // 숫자 버튼 클릭 처리
+    document.querySelectorAll('#keypad .key').forEach(btn => {
+      btn.onclick = () => {
+        const num = parseInt(btn.dataset.key);
+        handleInput(num);
+      };
+    });
+
+    // 초기 게임 시작
+    newGame();
+  </script>
 </body>
 </html>
